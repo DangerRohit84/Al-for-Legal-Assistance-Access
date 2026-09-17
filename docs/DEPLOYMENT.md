@@ -16,7 +16,7 @@ Why: Dockerfile honours `$PORT`, stateless (in-memory index per instance — fin
 
 - Build: `pip install -r requirements.txt`
 - Start: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
-- Env: `LLM_PROVIDER=echo` (or gemini/openai-compat keys).
+- Env: `LLM_PROVIDER=echo` (or gemini/openai-compat keys) + `DEMO_MODE=true` on Render dashboard (keeps single-tenant demo global fallback for video stability; do not change code default; prod multi-user sets `DEMO_MODE=false` to close leak).
 
 ## Option C: Vercel (Python)
 

@@ -10,16 +10,51 @@ re-fit, plus single-pass scoring in the fallback. Zero-overlap filter
 (s > 0) guarantees the Cannot-Determine path instead of a spurious Partial.
 Scores in [0, 1] are attached to Chunk.score and surfaced in API citations
 for calibrated confidence (see prompting.confidence_for).
+Stop-words filtered (TF-IDF stop_words=english + fallback _STOP) so
+"What is the capital of France?" scores 0.0 vs rent corpus -> [].
+Thread-safe cached index via threading.Lock for concurrent /ask.
 """
 from __future__ import annotations
 
 import re
+import threading
 
 _WORD = re.compile(r"[a-z0-9]+")
+# Minimal english stop-words for the zero-download fallback (mirrors sklearn
+# stop_words="english" for the critical what/is/the/of/when/due inflators).
+_STOP = frozenset((
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "what", "when", "where", "who", "how", "why", "of", "on", "in", "to",
+    "for", "with", "and", "or", "as", "at", "by", "from", "that", "this",
+    "it", "its", "due", "so", "than", "then", "there", "their", "they",
+))
 
 
 def _tokens(s: str) -> list:
     return _WORD.findall((s or "").lower())
+
+
+def _content_tokens(s: str) -> set:
+    return {t for t in _tokens(s) if t not in _STOP}
+
+
+def _overlap_search(chunks: list, query: str, top_k: int) -> list:
+    """Single-pass Jaccard fallback on stop-word-filtered tokens."""
+    qt = _content_tokens(query)
+    if not qt:
+        return []
+    scored = []
+    for c in chunks:
+        ct = _content_tokens(c.text)
+        s = (len(qt & ct) / (1 + len(qt | ct))) if ct else 0.0
+        scored.append((s, c))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    hits = []
+    for s, c in scored[:top_k]:
+        if s > 0:
+            c.score = float(s)
+            hits.append(c)
+    return hits
 
 
 class InMemoryStore:
@@ -32,6 +67,7 @@ class InMemoryStore:
         self._vectorizer = None
         self._doc_matrix = None
         self._cache_version: int = -1
+        self._lock = threading.Lock()
 
     def add(self, chunks: list) -> None:
         self.chunks.extend(chunks or [])
@@ -61,13 +97,17 @@ class InMemoryStore:
             # Cached index: refit only when corpus version changed (add/clear).
             # Per-search work is query-only transform + cosine against cached
             # doc matrix, not fit_transform(corpus + [query]) re-tokenizing N.
-            if self._vectorizer is None or self._doc_matrix is None or self._cache_version != self._version:
-                corpus = [c.text for c in self.chunks]
-                self._vectorizer = TfidfVectorizer()
-                self._doc_matrix = self._vectorizer.fit_transform(corpus)
-                self._cache_version = self._version
-            q_vec = self._vectorizer.transform([query])
-            sims = cosine_similarity(q_vec, self._doc_matrix)[0]
+            # stop_words="english" drops what/is/the/of inflators so France
+            # query scores 0.0 -> [] -> Cannot Determine (not 0.50 Grounded).
+            # Lock guards concurrent refit on first search after add/clear.
+            with self._lock:
+                if self._vectorizer is None or self._doc_matrix is None or self._cache_version != self._version:
+                    corpus = [c.text for c in self.chunks]
+                    self._vectorizer = TfidfVectorizer(stop_words="english")
+                    self._doc_matrix = self._vectorizer.fit_transform(corpus)
+                    self._cache_version = self._version
+                q_vec = self._vectorizer.transform([query])
+                sims = cosine_similarity(q_vec, self._doc_matrix)[0]
             ranked = sorted(zip(sims, self.chunks), key=lambda x: x[0], reverse=True)
             hits: list = []
             for s, c in ranked[:top_k]:
@@ -78,37 +118,7 @@ class InMemoryStore:
             # path instead of a spurious Partial on zero token overlap.
             return hits
         except ImportError:
-            qt = set(_tokens(query))
-            if not qt:
-                return []
-            # Single-pass scoring: compute once, sort, filter (no 2x tokenize).
-            scored = []
-            for c in self.chunks:
-                ct = set(_tokens(c.text))
-                s = (len(qt & ct) / (1 + len(qt | ct))) if ct else 0.0
-                scored.append((s, c))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            # Filter zero-overlap so unrelated queries return [] (Cannot Determine).
-            hits = []
-            for s, c in scored[:top_k]:
-                if s > 0:
-                    c.score = float(s)
-                    hits.append(c)
-            return hits
+            return _overlap_search(self.chunks, query, top_k)
         except ValueError:
             # Empty vocabulary (e.g., stop-words-only corpus): fall back to overlap.
-            qt = set(_tokens(query))
-            if not qt:
-                return []
-            scored = []
-            for c in self.chunks:
-                ct = set(_tokens(c.text))
-                s = (len(qt & ct) / (1 + len(qt | ct))) if ct else 0.0
-                scored.append((s, c))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            hits = []
-            for s, c in scored[:top_k]:
-                if s > 0:
-                    c.score = float(s)
-                    hits.append(c)
-            return hits
+            return _overlap_search(self.chunks, query, top_k)
