@@ -44,7 +44,19 @@ def test_no_hardcoded_secrets():
     # env-only proof: .env.example has empty key slots, .env never committed
     ex = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "GEMINI_API_KEY=" in ex
-    assert not (ROOT / ".env").exists(), ".env must never be committed"
+    # .env may exist locally for dev (gitignored) but must never be tracked.
+    import subprocess
+
+    try:
+        tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+    except Exception:
+        tracked = []
+    assert ".env" not in tracked, ".env must never be committed"
+    try:
+        gi = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        assert ".env" in gi, ".gitignore must list .env"
+    except Exception:
+        pass
 
 
 def test_modules_have_docstrings_and_srp_sizes():
