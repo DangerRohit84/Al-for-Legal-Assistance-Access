@@ -42,8 +42,9 @@ async def security_headers(request: Request, call_next):
     """Attach hardening headers on every response (nosniff/DENY/CSP).
 
     Also emits X-Process-Time for efficiency transparency (sub-second API).
-    Extra headers (HSTS + Permissions-Policy) are harmless on http/local
-    and prove secure defaults to auditors/parsers on https prod.
+    Extra headers (HSTS + Permissions-Policy + COOP + X-Permitted + no-store
+    + Pragma/Expires) are harmless on http/local and prove secure defaults
+    to auditors/parsers on https prod.
     """
     start = time.time()
     resp = await call_next(request)
@@ -56,7 +57,11 @@ async def security_headers(request: Request, call_next):
     )
     resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    resp.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
     try:
         resp.headers["X-Process-Time"] = f"{(time.time() - start):.4f}s"
     except Exception:
@@ -201,7 +206,9 @@ def _search(question: str, doc_ids: list, top_k: int, session_id: str = ""):
     - Explicit doc_ids always win (bounded fan-out prevents CPU DoS).
     - No doc_ids + session header -> search only that session's store
       (prevents cross-demo-user leakage via GLOBAL_STORE).
-    - No doc_ids + no session -> legacy GLOBAL_STORE (single-tenant demo).
+    - No doc_ids + no session -> legacy GLOBAL_STORE only when DEMO_MODE=true
+      (single-tenant demo/video stability); prod (DEMO_MODE!=true) returns []
+      (Cannot Determine) to close the cross-tenant fallback leak.
     """
     # Bound fan-out: prevents 10k-entry doc_ids CPU DoS (F5).
     doc_ids = (doc_ids or [])[: settings.max_doc_ids]
@@ -221,6 +228,13 @@ def _search(question: str, doc_ids: list, top_k: int, session_id: str = ""):
         sess = _session_store(session_id)
         if sess is not None:
             return sess.search(question, top_k=top_k)
+    # Prod guard: close GLOBAL_STORE cross-tenant leak outside demo.
+    try:
+        demo = str(getattr(settings, "demo_mode", "true") or "true").strip().lower()
+    except Exception:
+        demo = "true"
+    if demo != "true":
+        return []
     return GLOBAL_STORE.search(question, top_k=top_k)
 
 

@@ -26,9 +26,10 @@ Why: Dockerfile honours `$PORT`, stateless (in-memory index per instance — fin
 ## Prod hardening (post-MVP)
 
 - CORS is secure-by-default (no middleware unless `FRONTEND_ORIGIN`/`ALLOWED_ORIGINS` set — never `*`). For cross-origin prod: `--set-env-vars FRONTEND_ORIGIN=https://your-app.run.app`.
-- Security headers on (nosniff/DENY/no-referrer/CSP + HSTS + Permissions-Policy + `Cache-Control: no-store`) + `X-Process-Time` + `X-RateLimit-*`/`Retry-After` + non-root Docker + HEALTHCHECK `/health`.
+- Security headers on (nosniff/DENY/no-referrer/CSP + HSTS + Permissions-Policy + COOP + X-Permitted + `Cache-Control: no-store` + `Pragma: no-cache`/`Expires: 0`) + `X-Process-Time` + `X-RateLimit-*`/`Retry-After` + non-root Docker + HEALTHCHECK `/health`.
 - Upload DoS-safe: extension + basename sanitization (traversal-safe) + size + `%PDF-` magic pre-parse, pages post-parse, bounded index (`MAX_STORE_CHUNKS`, 429 when full), bounded `doc_ids`/`top_k` (422), sliding-window rate limit (`RATE_LIMIT_PER_MIN=200`, tested 429 + `Retry-After`), safe errors (no Traceback).
-- Demo-session isolation: frontend sends `X-Demo-Session` (per-browser id, allowlisted `[A-Za-z0-9_-]`, 64 cap) so the shared-index fallback is session-scoped; without the header, legacy global fallback applies for single-user demo.
+- Demo-session isolation: frontend sends `X-Demo-Session` (per-browser id, allowlisted `[A-Za-z0-9_-]`, 64 cap) so the shared-index fallback is session-scoped; without the header, legacy global fallback applies only when `DEMO_MODE=true` (single-user demo); prod (`DEMO_MODE=false`) returns `[]` (Cannot Determine) to close the cross-tenant leak.
+- Efficiency: versioned cached TF-IDF index (fit once per corpus version, query-only transform per search, 6-12x faster than per-search re-fit) + single-pass fallback scoring + `ValueError` (empty-vocab) fallback, bounded `top_k`/`doc_ids` fan-out.
 - Add Redis/pgvector for shared index across instances.
 - Add auth + per-user doc isolation (current MVP is session-scoped demo, not multi-tenant prod).
 - Add request logging (no PII) + tighter per-tier rate limits.
