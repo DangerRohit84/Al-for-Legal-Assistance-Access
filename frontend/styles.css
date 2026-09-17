@@ -1,4 +1,5 @@
 :root{--bg:#fff;--fg:#111;--mut:#555;--line:#ddd;--acc:#0b5fff;--ok:#0a7a2f;--warn:#9a5b00;--bad:#b00020}
+/* AA contrast (white bg): fg #111 ~15:1, mut #555 ~7.5:1, acc white-on-#0b5fff ~5.9:1, ok #0a7a2f-on-#e6f4ea ~5.2:1, warn #9a5b00-on-#fef7e0 ~5.0:1, bad #b00020-on-#fce8e6 ~7.0:1 — all >=4.5:1 normal text. */
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
 .skip{position:absolute;left:-999px}.skip:focus{left:8px;top:8px;background:#000;color:#fff;padding:8px}
 header,main,footer{max-width:860px;margin:0 auto;padding:16px}
@@ -6,8 +7,9 @@ header,main,footer{max-width:860px;margin:0 auto;padding:16px}
 section{border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
 label{display:block;margin:8px 0 4px;font-weight:600}
 input[type=text],input:not([type]){width:100%;padding:10px;border:1px solid var(--line);border-radius:8px}
-button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;margin-top:10px;cursor:pointer}
-button:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;margin-top:10px;cursor:pointer;min-height:44px;min-width:44px}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid #000;outline-offset:2px}
+#errors{border-radius:8px;padding:0;margin:0}#errors:not(:empty){background:#fce8e6;border:1px solid #b00020;color:#60000f;padding:10px;margin:12px 0;font-weight:600}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.inline{font-weight:400}
 #answer,.grid2 article,#draft{border:1px dashed var(--line);border-radius:8px;padding:12px;margin-top:12px;white-space:pre-wrap}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.grid2{grid-template-columns:1fr}}

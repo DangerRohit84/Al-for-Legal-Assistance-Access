@@ -12,3 +12,4 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 node_modules/
+.ai/

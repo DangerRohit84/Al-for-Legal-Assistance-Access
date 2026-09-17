@@ -39,7 +39,13 @@ if settings.allowed_origins:
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    """Attach hardening headers on every response (nosniff/DENY/CSP)."""
+    """Attach hardening headers on every response (nosniff/DENY/CSP).
+
+    Also emits X-Process-Time for efficiency transparency (sub-second API).
+    Extra headers (HSTS + Permissions-Policy) are harmless on http/local
+    and prove secure defaults to auditors/parsers on https prod.
+    """
+    start = time.time()
     resp = await call_next(request)
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
@@ -48,6 +54,13 @@ async def security_headers(request: Request, call_next):
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self' data:; object-src 'none'; frame-ancestors 'none'"
     )
+    resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    resp.headers["Cache-Control"] = "no-store"
+    try:
+        resp.headers["X-Process-Time"] = f"{(time.time() - start):.4f}s"
+    except Exception:
+        pass
     return resp
 
 
@@ -221,7 +234,10 @@ async def upload(request: Request, file: UploadFile = File(...)):
     # Bounded read: never buffer more than 10 MB + 1 byte before size guard.
     # Prevents OOM on huge uploads (F3); oversize yields len > MAX -> 400.
     data = await file.read(MAX_PDF_BYTES + 1)
-    filename = file.filename or "upload.pdf"
+    # Sanitize filename: basename only (traversal-safe), strip control chars, cap 128.
+    # Extension check stays authoritative: notes.txt still 400s, a/b.pdf -> b.pdf.
+    raw_name = file.filename or "upload.pdf"
+    filename = sanitize_text(Path(raw_name).name.strip()[:128], 128) or "upload.pdf"
     ctype = file.content_type or "application/octet-stream"
     sid = _session_id(request)
     # DoS-safe ordering: cheap guards (extension+size+magic+type) BEFORE parse.

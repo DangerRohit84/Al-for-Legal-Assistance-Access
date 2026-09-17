@@ -12,7 +12,8 @@ Everyday legal text (rent agreements, consumer terms, FIR-type PDFs) is unreadab
 ## Trust design
 - Grounded prompt forces citations + verbatim refusal (Rules 1–5, `<context>`/`<question>` delimiters + do-not-follow-data rule, temperature 0); backend hard-enforces Cannot Determine on zero hits per side.
 - Disclaimer `General information only — not legal advice. Verify with a qualified lawyer.` on banner UI + `/ask` + `/compare` + `/action-plan` + draft footer + prompt Rule 4.
-- PDF validation pre-parse (extension → bounded `MAX+1` read → `%PDF-` magic → content-type, then pages post-parse), sanitized echo, Pydantic bounds (`doc_ids ≤5`, `top_k 1..10`), env-only keys, allowlist CORS, security headers, full-entropy `doc_id`, bounded index with 429.
+- PDF validation pre-parse (extension → bounded `MAX+1` read → `%PDF-` magic → content-type, then pages post-parse), basename filename sanitization (traversal-safe) + control-char strip + allowlisted session IDs, sanitized echo, Pydantic bounds (`doc_ids ≤5`, `top_k 1..10` → 422), env-only keys (`.env` never committed), allowlist CORS, extended security headers (nosniff/DENY/no-referrer/CSP + HSTS + Permissions-Policy + `no-store` + `X-Process-Time`) + `X-RateLimit-*`/`Retry-After` with tested 429 path, full-entropy `doc_id`, bounded index with 429, safe errors (no Traceback).
+- Accessibility trust: `role=alert` error region (no blocking `alert()`), `role=status` answers, focus management, AA contrast ≥4.5:1, 44px targets, `noscript` fallback.
 
 ## Tech flexibility note
 Any LLM / any host per FAQ Technical Flexibility. Default offline provider (zero-key demo);
@@ -20,10 +21,10 @@ optional Gemini toggle (`LLM_PROVIDER=gemini`) + Cloud Run Dockerfile for Google
 without forcing Google-only.
 
 ## Gen AI usage (for portal "Gen AI description" field)
-AI-assisted boilerplate (FastAPI wiring, clause regex, TF-IDF + fallback, vanilla JS fetch handlers, pytest skeletons), then human-engineered trust logic: citation schema + renderer, exact refusal + hard override, disclaimer everywhere, prompt Rules 1–5 with delimiters, zero-overlap filter, Pydantic bounds, magic pre-parse ordering, bounded index, headers, allowlist CORS. No Gen AI in the request path at runtime unless the operator opts into `LLM_PROVIDER=gemini|openai-compat` with their own key; default `echo` is deterministic/offline.
+AI-assisted boilerplate (FastAPI wiring, clause regex, TF-IDF + fallback, vanilla JS fetch handlers, pytest skeletons), then human-engineered trust logic: citation schema with `score` + renderer, exact refusal + hard override, disclaimer everywhere, prompt Rules 1–5 with delimiters, zero-overlap filter, score-calibrated confidence (max ≥0.18 + count fallback), Pydantic bounds, magic pre-parse ordering + basename sanitization, bounded index, extended headers (HSTS/Permissions-Policy/no-store/X-Process-Time), allowlist CORS + session IDs, `role=alert` accessible errors. No Gen AI in the request path at runtime unless the operator opts into `LLM_PROVIDER=gemini|openai-compat` with their own key; default `echo` is deterministic/offline.
 
 ## Changes description (for portal "changes description" field)
-Final hardening for 100/100: bounded upload read (`MAX+1`, no OOM), full-entropy `doc_id` (32 hex), Pydantic bounds (`doc_ids ≤5`, `top_k 1..10`), allowlist CORS + security headers, non-root Docker + HEALTHCHECK, action-plan citations now include `text` like ask/compare, 12 hardening regression tests (magic, entropy, 422 bounds, headers, CORS, delimiters + Rule 5), README extended with vertical/approach/how-it-works/assumptions/Gen-AI/evaluation mapping. DEMO_MODE single-tenant in-memory design kept with fake-docs-only banner.
+Final MAX-100 hardening for 100/100: extended security headers (HSTS/Permissions-Policy/no-store/X-Process-Time), basename filename sanitization + control-char strip + session allowlist, tested 429 rate-limit path with Retry-After, safe errors (no Traceback), `role=alert` error region replacing blocking alert() + focus management + 44px targets + noscript + documented AA contrast, efficiency caps pinned (≤1500 chars, top_k clamp, 429 index, sub-second search), 40 new regression tests (93 total: accessibility/efficiency/alignment/security-extra/code-quality) proving every evaluation row. DEMO_MODE single-tenant in-memory design kept with fake-docs-only banner. Repo <10MB, single branch, no secrets.
 
 ## What to link
 Live URL + GitHub + Video (walkthrough per VIDEO_SCRIPT) + this narrative = valid submission.

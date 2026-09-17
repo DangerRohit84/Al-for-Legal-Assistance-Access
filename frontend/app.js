@@ -26,16 +26,25 @@ function cites(list) {
   }).join("");
 }
 function escapeHtml(s){return String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function showError(msg){
+  // Accessible errors: role=alert live region (screen-reader announced),
+  // never blocking alert(). Cleared on next success.
+  const el = $("errors");
+  if (el) { el.textContent = String(msg || "Something went wrong"); el.focus && el.setAttribute("tabindex","-1"); try{el.focus({preventScroll:false});}catch{} }
+}
+function clearError(){ const el = $("errors"); if (el) el.textContent = ""; }
 
 $("upForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  clearError();
   const f = $("pdf").files[0];
-  if (!f) return;
+  if (!f) { showError("Choose a PDF file first (max 10 MB, 100 pages)."); return; }
   const fd = new FormData();
   fd.append("file", f);
   const r = await fetch("/upload", { method: "POST", headers: {...SID_HDR}, body: fd });
   const j = await r.json();
-  if (!r.ok) { alert(j.detail || "Upload failed"); return; }
+  if (!r.ok) { showError(j.detail || "Upload failed"); return; }
+  clearError();
   docs.push(j.doc_id);
   $("docs").innerHTML += `<li><code>${j.doc_id}</code> — ${escapeHtml(j.filename)} · ${j.pages} pages · ${j.chunks} chunks</li>`;
   if (!$("cmpA").value) $("cmpA").value = j.doc_id;
@@ -44,7 +53,8 @@ $("upForm").addEventListener("submit", async (e) => {
 
 $("askBtn").addEventListener("click", async () => {
   const question = $("q").value.trim();
-  if (question.length < 3) { alert("Type a question first"); return; }
+  if (question.length < 3) { showError("Type a question first (min 3 characters)."); $("q").focus(); return; }
+  clearError();
   const r = await fetch("/ask", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR},
     body: JSON.stringify({ question, doc_ids: docs, plain_language: $("plain").checked }) });
   const j = await r.json();
@@ -55,18 +65,23 @@ $("askBtn").addEventListener("click", async () => {
 $("cmpBtn").addEventListener("click", async () => {
   const question = $("q").value.trim() || "Summarise key obligations";
   const body = { question, doc_id_a: $("cmpA").value.trim(), doc_id_b: $("cmpB").value.trim(), plain_language: $("plain").checked };
+  if (!body.doc_id_a || !body.doc_id_b) { showError("Upload two docs first, then compare (Doc A and Doc B required)."); return; }
+  clearError();
   const r = await fetch("/compare", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR}, body: JSON.stringify(body) });
   const j = await r.json();
+  if (!r.ok) { showError(j.detail || "Compare failed"); return; }
   $("sideA").innerHTML = `<h3>Doc ${escapeHtml(j.side_a.doc_id)}</h3>${badge(j.side_a.confidence)}<p>${escapeHtml(j.side_a.answer)}</p>${cites(j.side_a.citations)}`;
   $("sideB").innerHTML = `<h3>Doc ${escapeHtml(j.side_b.doc_id)}</h3>${badge(j.side_b.confidence)}<p>${escapeHtml(j.side_b.answer)}</p>${cites(j.side_b.citations)}`;
 });
 
 $("actBtn").addEventListener("click", async () => {
   const topic = $("topic").value.trim();
-  if (topic.length < 3) { alert("Type a topic first"); return; }
+  if (topic.length < 3) { showError("Type a topic first (min 3 characters)."); $("topic").focus(); return; }
+  clearError();
   const r = await fetch("/action-plan", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR},
     body: JSON.stringify({ topic, doc_ids: docs }) });
   const j = await r.json();
+  if (!r.ok) { showError(j.detail || "Action-plan failed"); return; }
   $("checklist").innerHTML = j.checklist.map(s => `<li>${escapeHtml(s)}</li>`).join("");
   $("draft").textContent = j.draft + "\n\n— " + j.disclaimer;
 });
