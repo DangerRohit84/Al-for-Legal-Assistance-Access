@@ -1,4 +1,9 @@
-"""Security guardrails: upload validation. Single responsibility only."""
+"""Security guardrails: upload validation. Single responsibility only.
+
+DoS-safe ordering enforced by callers: cheap pre-parse guards
+(extension -> bounded size -> %PDF- magic -> content-type) run BEFORE pypdf,
+page-count guards run AFTER parse. All failures raise user-safe ValueError.
+"""
 from __future__ import annotations
 
 MAX_PDF_BYTES = 10 * 1024 * 1024

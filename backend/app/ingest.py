@@ -1,4 +1,8 @@
-"""PDF ingest: bytes -> pages -> clause-aware chunks with page metadata."""
+"""PDF ingest: bytes -> pages -> clause-aware chunks with page metadata.
+
+SRP: parsing + clause splitting only. Page numbers preserved on every Chunk
+(≤1500 chars) so citations [Doc p.X, Clause Y] stay traceable.
+"""
 from __future__ import annotations
 
 import io

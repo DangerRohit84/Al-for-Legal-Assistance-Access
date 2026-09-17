@@ -26,9 +26,10 @@ Why: Dockerfile honours `$PORT`, stateless (in-memory index per instance — fin
 ## Prod hardening (post-MVP)
 
 - CORS is secure-by-default (no middleware unless `FRONTEND_ORIGIN`/`ALLOWED_ORIGINS` set — never `*`). For cross-origin prod: `--set-env-vars FRONTEND_ORIGIN=https://your-app.run.app`.
-- Security headers on (nosniff/DENY/no-referrer/CSP) + non-root Docker + HEALTHCHECK `/health`.
-- Upload DoS-safe: extension + size + `%PDF-` magic pre-parse, pages post-parse, bounded index (`MAX_STORE_CHUNKS`, 429 when full), bounded `doc_ids`/`top_k`.
+- Security headers on (nosniff/DENY/no-referrer/CSP) + `X-RateLimit-*`/`Retry-After` + non-root Docker + HEALTHCHECK `/health`.
+- Upload DoS-safe: extension + size + `%PDF-` magic pre-parse, pages post-parse, bounded index (`MAX_STORE_CHUNKS`, 429 when full), bounded `doc_ids`/`top_k`, sliding-window rate limit (`RATE_LIMIT_PER_MIN=200`).
+- Demo-session isolation: frontend sends `X-Demo-Session` (per-browser id) so the shared-index fallback is session-scoped; without the header, legacy global fallback applies for single-user demo.
 - Add Redis/pgvector for shared index across instances.
-- Add auth + per-user doc isolation (current MVP is single-tenant demo).
-- Add rate limiting + request logging (no PII).
+- Add auth + per-user doc isolation (current MVP is session-scoped demo, not multi-tenant prod).
+- Add request logging (no PII) + tighter per-tier rate limits.
 - Set `MAX_CHUNKS` + page caps per plan tier.

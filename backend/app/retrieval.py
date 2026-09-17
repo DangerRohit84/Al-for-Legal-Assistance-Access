@@ -2,6 +2,12 @@
 
 Keeps MVP zero-download and fast; swap in dense embeddings later via the same
 InMemoryStore interface (Open/Closed: extend, don't modify callers).
+
+Efficiency: bounded O(N) per search with N <= MAX_STORE_CHUNKS (5000) and
+top_k clamped to 1..10. Zero-overlap filter (s > 0) guarantees the
+Cannot-Determine path instead of a spurious Partial. Scores in [0, 1] are
+attached to Chunk.score and surfaced in API citations for calibrated
+confidence (see prompting.confidence_for).
 """
 from __future__ import annotations
 
@@ -27,6 +33,11 @@ class InMemoryStore:
         self.chunks = []
 
     def search(self, query: str, top_k: int = 5) -> list:
+        """Rank chunks by cosine/Jaccard similarity; attach Chunk.score.
+
+        Returns top_k hits with score > 0, sorted desc. Empty list means
+        zero token overlap -> callers must take the Cannot Determine path.
+        """
         if not self.chunks or not (query or "").strip():
             return []
         top_k = max(1, min(top_k, 10))
@@ -38,7 +49,11 @@ class InMemoryStore:
             vec = TfidfVectorizer().fit_transform(corpus + [query])
             sims = cosine_similarity(vec[-1], vec[:-1])[0]
             ranked = sorted(zip(sims, self.chunks), key=lambda x: x[0], reverse=True)
-            hits = [c for s, c in ranked[:top_k] if s > 0]
+            hits: list = []
+            for s, c in ranked[:top_k]:
+                if float(s) > 0:
+                    c.score = float(s)
+                    hits.append(c)
             # Return possibly-empty hits so callers hit the Cannot Determine
             # path instead of a spurious Partial on zero token overlap.
             return hits
@@ -55,4 +70,10 @@ class InMemoryStore:
 
             ranked = sorted(self.chunks, key=score, reverse=True)
             # Filter zero-overlap so unrelated queries return [] (Cannot Determine).
-            return [c for c in ranked[:top_k] if score(c) > 0]
+            hits = []
+            for c in ranked[:top_k]:
+                s = score(c)
+                if s > 0:
+                    c.score = float(s)
+                    hits.append(c)
+            return hits

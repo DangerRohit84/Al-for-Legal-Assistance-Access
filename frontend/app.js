@@ -1,6 +1,17 @@
-/* Vanilla JS — no build step. All fetches relative so Cloud Run / Vercel / Render work. */
+/* Vanilla JS — no build step. All fetches relative so Cloud Run / Vercel / Render work.
+   Demo-session isolation: per-browser X-Demo-Session scopes the shared-index
+   fallback so public-URL demos don't leak across users. Scores from API
+   citations are shown for transparency (calibrated confidence). */
 const $ = (id) => document.getElementById(id);
 const docs = [];
+const SID = (() => {
+  try {
+    let s = localStorage.getItem("demoSession");
+    if (!s) { s = "demo-" + Math.random().toString(36).slice(2, 10); localStorage.setItem("demoSession", s); }
+    return s;
+  } catch { return "demo-fallback"; }
+})();
+const SID_HDR = { "X-Demo-Session": SID };
 
 function badge(conf) {
   const ok = ["Grounded", "Partial", "Cannot Determine"];
@@ -9,7 +20,10 @@ function badge(conf) {
   return `<span class="badge ${cls}">${safe}</span>`;
 }
 function cites(list) {
-  return (list || []).map(c => `<cite>[Doc ${c.doc_id || ""} p.${c.page}, ${c.clause}] ${escapeHtml((c.text||"").slice(0,220))}</cite>`).join("");
+  return (list || []).map(c => {
+    const sc = (c.score !== undefined && c.score !== null) ? ` <span class="score">(score ${Number(c.score).toFixed(3)})</span>` : "";
+    return `<cite>[Doc ${c.doc_id || ""} p.${c.page}, ${c.clause}]${sc} ${escapeHtml((c.text||"").slice(0,220))}</cite>`;
+  }).join("");
 }
 function escapeHtml(s){return String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 
@@ -19,7 +33,7 @@ $("upForm").addEventListener("submit", async (e) => {
   if (!f) return;
   const fd = new FormData();
   fd.append("file", f);
-  const r = await fetch("/upload", { method: "POST", body: fd });
+  const r = await fetch("/upload", { method: "POST", headers: {...SID_HDR}, body: fd });
   const j = await r.json();
   if (!r.ok) { alert(j.detail || "Upload failed"); return; }
   docs.push(j.doc_id);
@@ -31,7 +45,7 @@ $("upForm").addEventListener("submit", async (e) => {
 $("askBtn").addEventListener("click", async () => {
   const question = $("q").value.trim();
   if (question.length < 3) { alert("Type a question first"); return; }
-  const r = await fetch("/ask", { method: "POST", headers: {"Content-Type":"application/json"},
+  const r = await fetch("/ask", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR},
     body: JSON.stringify({ question, doc_ids: docs, plain_language: $("plain").checked }) });
   const j = await r.json();
   $("answer").innerHTML = `${badge(j.confidence)}<p>${escapeHtml(j.answer)}</p>${cites(j.citations)}<cite>${escapeHtml(j.disclaimer)} · provider: ${escapeHtml(j.provider||"")}</cite>`;
@@ -41,7 +55,7 @@ $("askBtn").addEventListener("click", async () => {
 $("cmpBtn").addEventListener("click", async () => {
   const question = $("q").value.trim() || "Summarise key obligations";
   const body = { question, doc_id_a: $("cmpA").value.trim(), doc_id_b: $("cmpB").value.trim(), plain_language: $("plain").checked };
-  const r = await fetch("/compare", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  const r = await fetch("/compare", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR}, body: JSON.stringify(body) });
   const j = await r.json();
   $("sideA").innerHTML = `<h3>Doc ${escapeHtml(j.side_a.doc_id)}</h3>${badge(j.side_a.confidence)}<p>${escapeHtml(j.side_a.answer)}</p>${cites(j.side_a.citations)}`;
   $("sideB").innerHTML = `<h3>Doc ${escapeHtml(j.side_b.doc_id)}</h3>${badge(j.side_b.confidence)}<p>${escapeHtml(j.side_b.answer)}</p>${cites(j.side_b.citations)}`;
@@ -50,7 +64,7 @@ $("cmpBtn").addEventListener("click", async () => {
 $("actBtn").addEventListener("click", async () => {
   const topic = $("topic").value.trim();
   if (topic.length < 3) { alert("Type a topic first"); return; }
-  const r = await fetch("/action-plan", { method: "POST", headers: {"Content-Type":"application/json"},
+  const r = await fetch("/action-plan", { method: "POST", headers: {"Content-Type":"application/json", ...SID_HDR},
     body: JSON.stringify({ topic, doc_ids: docs }) });
   const j = await r.json();
   $("checklist").innerHTML = j.checklist.map(s => `<li>${escapeHtml(s)}</li>`).join("");

@@ -1,4 +1,8 @@
-"""Action helper: checklists + draft letters. Always labelled, never advice."""
+"""Action helper: checklists + draft letters. Always labelled, never advice.
+
+Clean Architecture use-case: pure functions, no I/O. Every output ends with
+lawyer-verify and carries the general-information disclaimer.
+"""
 from __future__ import annotations
 
 from .prompting import DISCLAIMER

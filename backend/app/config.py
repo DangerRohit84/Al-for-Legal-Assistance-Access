@@ -7,7 +7,11 @@ def _origins(raw: str) -> list:
 
 
 class Settings:
-    """Single-responsibility: read env, expose typed knobs."""
+    """Single-responsibility: read env, expose typed knobs.
+
+    Security knobs default closed (no CORS wildcard, bounded index/fan-out,
+    generous demo rate limit). All overrides via env for Cloud Run/Render.
+    """
 
     def __init__(self) -> None:
         self.llm_provider: str = os.getenv("LLM_PROVIDER", "echo").lower()
@@ -25,6 +29,9 @@ class Settings:
         self.max_doc_ids: int = int(os.getenv("MAX_DOC_IDS", "5"))
         self.max_store_chunks: int = int(os.getenv("MAX_STORE_CHUNKS", "5000"))
         self.demo_mode: str = os.getenv("DEMO_MODE", "true").lower()
+        # Rate limit: requests/min/IP across mutating APIs (generous for demo
+        # so video walkthrough + pytest never 429; tighten per-tier in prod).
+        self.rate_limit_per_min: int = int(os.getenv("RATE_LIMIT_PER_MIN", "200"))
 
 
 settings = Settings()
