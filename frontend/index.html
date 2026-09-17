@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Clause-grounded legal aid demo: answers only from your PDFs with page+clause citations, Cannot Determine refusal, and general-information disclaimer." />
+<title>Clause-Grounded Legal Aid — MVP</title>
+<link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header role="banner">
+  <h1>Clause-Grounded Legal Aid</h1>
+  <p class="sub">Answers only from your PDFs — with page + clause citations.</p>
+  <div class="disclaimer" role="note" aria-label="Disclaimer">General information only — not legal advice. Verify with a qualified lawyer.</div>
+</header>
+<main id="main">
+  <p class="demo-note" role="note">Demo build: single-tenant in-memory index. Use only fake/redacted PDFs — do not upload real personal legal documents to a public URL.</p>
+  <section aria-labelledby="h-upload">
+    <h2 id="h-upload">1. Upload PDF(s)</h2>
+    <form id="upForm">
+      <label for="pdf">Choose PDF (max 10 MB, 100 pages)</label>
+      <input id="pdf" name="file" type="file" accept="application/pdf,.pdf" required />
+      <button type="submit">Upload &amp; index</button>
+    </form>
+    <ul id="docs" aria-live="polite"></ul>
+  </section>
+
+  <section aria-labelledby="h-ask">
+    <h2 id="h-ask">2. Ask with citations</h2>
+    <label for="q">Question</label>
+    <input id="q" type="text" placeholder="e.g. When is rent due? What is the late fee?" autocomplete="off" aria-describedby="askHint" />
+    <p class="hint" id="askHint">Answers cite [Doc p.X, Clause Y] or reply Cannot Determine when unsure.</p>
+    <div class="row">
+      <label class="inline"><input id="plain" type="checkbox" /> Plain-language answer</label>
+      <button id="askBtn">Ask</button>
+    </div>
+    <div id="answer" aria-live="polite" tabindex="-1"></div>
+  </section>
+
+  <section aria-labelledby="h-cmp">
+    <h2 id="h-cmp">3. Comparison mode</h2>
+    <p class="hint" id="cmpHint">Upload two docs, then compare the same question side-by-side.</p>
+    <div class="row" role="group" aria-describedby="cmpHint">
+      <label for="cmpA">Doc A</label><input id="cmpA" placeholder="doc_id A" autocomplete="off" />
+      <label for="cmpB">Doc B</label><input id="cmpB" placeholder="doc_id B" autocomplete="off" />
+    </div>
+    <button id="cmpBtn">Compare</button>
+    <div class="grid2">
+      <article id="sideA" aria-live="polite"></article>
+      <article id="sideB" aria-live="polite"></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-act">
+    <h2 id="h-act">4. Action checklist + draft helper</h2>
+    <label for="topic">Topic</label>
+    <input id="topic" type="text" placeholder="e.g. Late-fee dispute for March" />
+    <button id="actBtn">Generate checklist + draft</button>
+    <ol id="checklist"></ol>
+    <pre id="draft" tabindex="0"></pre>
+  </section>
+</main>
+<footer>
+  <small>MVP scaffold · LLM toggle via <code>LLM_PROVIDER=echo|gemini|openai-compat</code> · No keys in code.</small>
+</footer>
+<script src="/frontend/app.js"></script>
+</body>
+</html>

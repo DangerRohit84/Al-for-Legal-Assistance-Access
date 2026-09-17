@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+pypdf>=4.0
+pytest>=8.0
+httpx>=0.27
+reportlab>=4.0
+# Optional (install only what you use):
+# scikit-learn>=1.3   # better TF-IDF ranking (fallback works without it)
+# google-generativeai>=0.8  # LLM_PROVIDER=gemini
